@@ -1,0 +1,338 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NBA Stats & Games Tracker</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #121212;
+            color: #f5f5f5;
+            margin: 0;
+            padding: 0;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 30px;
+            padding-bottom: 10px;
+            border-bottom: 2px solid #333;
+        }
+        .logo {
+            display: flex;
+            align-items: center;
+        }
+        .logo img {
+            height: 60px;
+            margin-right: 15px;
+        }
+        .logo h1 {
+            color: #ffffff;
+            margin: 0;
+        }
+        select {
+            background-color: #333;
+            color: white;
+            border: 1px solid #555;
+            padding: 8px 15px;
+            font-size: 1rem;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        .content {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 30px;
+        }
+        @media (max-width: 768px) {
+            .content {
+                grid-template-columns: 1fr;
+            }
+        }
+        .card {
+            background-color: #222;
+            border-radius: 8px;
+            padding: 20px;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+        }
+        .card h2 {
+            color: #e10000;
+            margin-top: 0;
+            padding-bottom: 10px;
+            border-bottom: 1px solid #333;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 15px;
+        }
+        th, td {
+            padding: 10px;
+            text-align: left;
+            border-bottom: 1px solid #333;
+        }
+        th {
+            color: #e10000;
+        }
+        .game-item {
+            display: flex;
+            justify-content: space-between;
+            padding: 15px 0;
+            border-bottom: 1px solid #333;
+            align-items: center;
+        }
+        .teams {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+        .team {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .team-logo {
+            width: 30px;
+            height: 30px;
+            object-fit: contain;
+        }
+        .vs {
+            font-weight: bold;
+            color: #e10000;
+        }
+        .game-time {
+            color: #aaa;
+        }
+        .loading-spinner {
+            text-align: center;
+            padding: 20px;
+            color: #aaa;
+        }
+        .error-message {
+            color: #e10000;
+            text-align: center;
+            padding: 20px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <div class="logo">
+                <img src="/api/placeholder/60/60" alt="NBA Logo">
+                <h1>NBA Stats & Games</h1>
+            </div>
+            <div>
+                <label for="season-selector">Season: </label>
+                <select id="season-selector">
+                    <option value="2022">2022-23</option>
+                    <option value="2023">2023-24</option>
+                    <option value="2024" selected>2024-25</option>
+                </select>
+            </div>
+        </header>
+
+        <div class="content">
+            <div class="card">
+                <h2>Team Standings</h2>
+                <div id="standings-container">
+                    <div class="loading-spinner">Loading standings data...</div>
+                </div>
+            </div>
+
+            <div class="card">
+                <h2>Upcoming Games</h2>
+                <div id="games-container">
+                    <div class="loading-spinner">Loading games data...</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            const seasonSelector = document.getElementById('season-selector');
+            const standingsContainer = document.getElementById('standings-container');
+            const gamesContainer = document.getElementById('games-container');
+            
+            // API URLs
+            const BALL_DONT_LIE_BASE_URL = 'https://www.balldontlie.io/api/v1';
+            
+            // Set default value to 2024-25 season
+            seasonSelector.value = '2024';
+            
+            // Load data initially
+            loadData(seasonSelector.value);
+            
+            // Add event listener for season selection change
+            seasonSelector.addEventListener('change', function() {
+                loadData(this.value);
+            });
+            
+            function loadData(season) {
+                // Reset containers and show loading
+                standingsContainer.innerHTML = '<div class="loading-spinner">Loading standings data...</div>';
+                gamesContainer.innerHTML = '<div class="loading-spinner">Loading games data...</div>';
+                
+                // Load standings
+                loadStandings(season);
+                
+                // Load upcoming games
+                loadUpcomingGames(season);
+            }
+            
+            function loadStandings(season) {
+                // For BallDontLie API, we need to map our season year to their season format (2022 → 2022-23)
+                const apiSeason = `${season}-${(parseInt(season) + 1).toString().slice(-2)}`;
+                
+                fetch(`${BALL_DONT_LIE_BASE_URL}/standings?season=${apiSeason}`)
+                    .then(response => {
+                        if (!response.ok) {
+                            throw new Error('Network response was not ok');
+                        }
+                        return response.json();
+                    })
+                    .then(data => {
+                        displayStandings(data.data);
+                    })
+                    .catch(error => {
+                        // If the API doesn't have data yet for this season
+                        // (especially for future seasons like 2024-25)
+                        standingsContainer.innerHTML = `
+                            <div class="error-message">
+                                <p>Standings data for the ${season}-${(parseInt(season) + 1).toString().slice(-2)} season is not available yet.</p>
+                                <p>Please try a different season or check back later.</p>
+                            </div>`;
+                        console.error('Error fetching standings:', error);
+                    });
+            }
+            
+            function displayStandings(standings) {
+                if (!standings || standings.length === 0) {
+                    standingsContainer.innerHTML = '<div class="error-message">No standings data available.</div>';
+                    return;
+                }
+                
+                // Sort teams by win percentage
+                const sortedTeams = standings.sort((a, b) => b.win_pct - a.win_pct);
+                
+                // Create the table
+                let html = `
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Rank</th>
+                                <th>Team</th>
+                                <th>W</th>
+                                <th>L</th>
+                                <th>Win %</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                `;
+                
+                sortedTeams.forEach((team, index) => {
+                    html += `
+                        <tr>
+                            <td>${index + 1}</td>
+                            <td>${team.team.full_name}</td>
+                            <td>${team.wins}</td>
+                            <td>${team.losses}</td>
+                            <td>${(team.win_pct * 100).toFixed(1)}%</td>
+                        </tr>
+                    `;
+                });
+                
+                html += `</tbody></table>`;
+                standingsContainer.innerHTML = html;
+            }
+            
+            function loadUpcomingGames(season) {
+                // Get current date
+                const today = new Date();
+                const startDate = formatDate(today);
+                
+                // For future dates (to get upcoming games)
+                const endDate = formatDate(new Date(today.setDate(today.getDate() + 7)));
+                
+                // For BallDontLie API, we need to map our season year to their season format
+                const apiSeason = `${season}-${(parseInt(season) + 1).toString().slice(-2)}`;
+                
+                fetch(`${BALL_DONT_LIE_BASE_URL}/games?start_date=${startDate}&end_date=${endDate}&seasons[]=${apiSeason}&per_page=100`)
+                    .then(response => {
+                        if (!response.ok) {
+                            throw new Error('Network response was not ok');
+                        }
+                        return response.json();
+                    })
+                    .then(data => {
+                        displayUpcomingGames(data.data);
+                    })
+                    .catch(error => {
+                        gamesContainer.innerHTML = `
+                            <div class="error-message">
+                                <p>Game schedule for the ${season}-${(parseInt(season) + 1).toString().slice(-2)} season is not available yet.</p>
+                                <p>Please try a different season or check back later.</p>
+                            </div>`;
+                        console.error('Error fetching games:', error);
+                    });
+            }
+            
+            function displayUpcomingGames(games) {
+                if (!games || games.length === 0) {
+                    gamesContainer.innerHTML = '<div class="error-message">No upcoming games found.</div>';
+                    return;
+                }
+                
+                // Sort games by date
+                const sortedGames = games.sort((a, b) => new Date(a.date) - new Date(b.date));
+                
+                let html = '';
+                
+                sortedGames.forEach(game => {
+                    // Convert UTC date to local time
+                    const gameDate = new Date(game.date);
+                    const localGameTime = gameDate.toLocaleString(navigator.language || 'en-US', {
+                        weekday: 'short',
+                        month: 'short',
+                        day: 'numeric',
+                        hour: '2-digit',
+                        minute: '2-digit'
+                    });
+                    
+                    html += `
+                        <div class="game-item">
+                            <div class="teams">
+                                <div class="team">
+                                    <img class="team-logo" src="/api/placeholder/30/30" alt="${game.home_team.name}">
+                                    <span>${game.home_team.name}</span>
+                                </div>
+                                <span class="vs">vs</span>
+                                <div class="team">
+                                    <img class="team-logo" src="/api/placeholder/30/30" alt="${game.visitor_team.name}">
+                                    <span>${game.visitor_team.name}</span>
+                                </div>
+                            </div>
+                            <div class="game-time">${localGameTime}</div>
+                        </div>
+                    `;
+                });
+                
+                gamesContainer.innerHTML = html;
+            }
+            
+            // Helper function to format date for API
+            function formatDate(date) {
+                return date.toISOString().split('T')[0];
+            }
+        });
+    </script>
+</body>
+</html>
